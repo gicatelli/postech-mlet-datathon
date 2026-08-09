@@ -15,10 +15,20 @@ A solução demonstra o ciclo completo de Machine Learning Engineering: formula�
 - **Dataset**: [bank-marketing (henriqueyamahata)](https://www.kaggle.com/datasets/henriqueyamahata/bank-marketing)
 - **Fonte**: Kaggle
 - **Licença**: CC BY 4.0
-- **Registros**: ~45.211
-- **Features**: 16 atributos (demográficos, financeiros e de campanha)
+- **Registros**: 41.188
+- **Features**: 20 atributos (demográficos, de campanha e socioeconômicos)
 - **Target**: `y` (subscreveu depósito a prazo: yes/no)
 - **Coluna descartada**: `duration` (vazamento temporal — só conhecida após o contato)
+
+### Colunas do Dataset
+
+| Tipo | Colunas |
+|------|---------|
+| Perfil do cliente | `age`, `job`, `marital`, `education`, `default`, `housing`, `loan` |
+| Campanha atual | `contact`, `month`, `day_of_week`, `campaign` |
+| Campanha anterior | `pdays`, `previous`, `poutcome` |
+| Indicadores socioeconômicos | `emp.var.rate`, `cons.price.idx`, `cons.conf.idx`, `euribor3m`, `nr.employed` |
+| Target | `y` |
 
 ---
 
@@ -27,8 +37,9 @@ A solução demonstra o ciclo completo de Machine Learning Engineering: formula�
 ### No Kaggle (recomendado para avaliadores):
 1. Acesse o notebook no Kaggle: [link do notebook]
 2. Clique em **"Copy & Edit"**
-3. Clique em **"Run All"**
-4. Todas as seções executam sequencialmente sem necessidade de configuração
+3. Verifique que o dataset "Bank Marketing" está adicionado no Input
+4. Clique em **"Run All"**
+5. Todas as seções executam sequencialmente sem necessidade de configuração
 
 ### Localmente:
 ```bash
@@ -36,6 +47,22 @@ git clone https://github.com/gicatelli/postech-mlet-datathon.git
 cd postech-mlet-datathon
 pip install -r requirements.txt
 jupyter notebook notebook/datathon-7mlet.ipynb
+```
+> Nota: Para execução local, coloque o arquivo `bank-additional-full.csv` na pasta `data/`.
+
+---
+
+## Estrutura do Projeto
+
+```
+postech-mlet-datathon/
+├── docs/
+│   └── DOCUMENTACAO.md       # Documentação técnica detalhada
+├── notebook/
+│   └── datathon-7mlet.ipynb  # Notebook principal (executar no Kaggle)
+├── requirements.txt          # Dependências Python
+├── LICENSE
+└── README.md
 ```
 
 ---
@@ -45,16 +72,25 @@ jupyter notebook notebook/datathon-7mlet.ipynb
 ### Baseline (Regra Fixa)
 Política determinística que sempre recomenda a oferta com maior taxa de conversão histórica (melhor braço fixo). Serve como referência comparativa.
 
-### Thompson Sampling (Algoritmo Adaptativo)
-Abordagem bayesiana que modela a incerteza sobre a taxa de conversão de cada braço usando distribuição Beta. A cada decisão, amostra valores de cada distribuição e seleciona o braço com maior amostra. Com segmentação contextual por perfil do cliente.
+### Thompson Sampling Contextual (Algoritmo Adaptativo)
+Abordagem bayesiana que modela a incerteza sobre a taxa de conversão de cada braço usando distribuição Beta. A cada decisão, amostra valores de cada distribuição e seleciona o braço com maior amostra. Utiliza segmentação contextual por perfil do cliente.
 
 **Braços (ofertas)**:
-| Braço | Oferta |
-|-------|--------|
-| 1 | Depósito a prazo (padrão) |
-| 2 | Depósito com taxa premium |
-| 3 | Produto alternativo (empréstimo) |
-| 4 | Controle (não contatar) |
+| Braço | Oferta | Critério de Favorecimento |
+|-------|--------|--------------------------|
+| 0 | Depósito a prazo (padrão) | Oferta base, sem ajuste |
+| 1 | Depósito com taxa premium | Clientes contatados 1x (alta qualificação) |
+| 2 | Produto alternativo (empréstimo) | Clientes jovens (age < 35) |
+| 3 | Controle (não contatar) | Reward sempre 0 |
+
+**Segmentos contextuais**:
+| Segmento | Critério |
+|----------|----------|
+| `historico_positivo` | `sucesso_anterior == 1` (poutcome anterior foi success) |
+| `jovem` | `age < 30` |
+| `senior` | `age > 55` |
+| `alta_qualificacao` | `campaign == 1` (converteu com apenas 1 contato) |
+| `padrao` | Demais clientes |
 
 ---
 
@@ -62,46 +98,78 @@ Abordagem bayesiana que modela a incerteza sobre a taxa de conversão de cada br
 
 | Métrica | Baseline | Thompson Sampling |
 |---------|----------|-------------------|
-| Taxa de Conversão | - | - |
+| Taxa de Conversão (CTR) | - | - |
 | Regret Acumulado | - | - |
 | Reward Acumulado | - | - |
+| Regret Médio | - | - |
 
-*Tabela será preenchida após execução do notebook.*
+*Tabela preenchida automaticamente ao executar o notebook.*
 
 ---
 
 ## Golden Set (5 Casos de Teste)
 
-| # | Perfil | Oferta Recomendada | Justificativa |
-|---|--------|--------------------|---------------|
-| 1 | Jovem, estudante, baixo saldo | - | - |
-| 2 | Adulto, gerente, alto saldo | - | - |
-| 3 | Aposentado, saldo médio | - | - |
-| 4 | Desempregado, sem contato anterior | - | - |
-| 5 | Técnico, contato anterior bem-sucedido | - | - |
+| # | Perfil | Segmento Esperado | Oferta Esperada | Justificativa |
+|---|--------|-------------------|-----------------|---------------|
+| 1 | Jovem, estudante, primeiro contato | jovem | Produto alternativo | Jovens tendem a preferir empréstimos a depósitos |
+| 2 | Adulto, gerente, alta qualificação | alta_qualificacao | Depósito premium | Contatado 1x, perfil qualificado que converte com pouco esforço |
+| 3 | Aposentado, múltiplos contatos | senior | Depósito padrão | Perfil conservador, busca segurança |
+| 4 | Desempregado, muitos contatos | padrao | Controle | Baixa propensão, evitar contato desnecessário |
+| 5 | Técnico, sucesso anterior | historico_positivo | Depósito padrão/premium | Histórico positivo indica alta propensão |
 
-*Tabela será preenchida após execução do notebook.*
+---
+
+## Serviço Demonstrável
+
+O notebook inclui duas funções que simulam uma API REST:
+
+```python
+# Recomendar oferta para um cliente
+resultado = recomendar_oferta({
+    'age': 35, 'job': 'technician', 'campaign': 1,
+    'sucesso_anterior': 1
+})
+# Retorna: oferta_recomendada, braco_selecionado, segmento_cliente,
+#          probabilidade_conversao, confianca, requer_revisao_humana
+
+# Registrar feedback (atualiza o modelo online)
+registrar_feedback(segmento='historico_positivo', braco=0, converteu=True)
+```
 
 ---
 
 ## Arquitetura Cloud (AWS)
 
-Para colocar este projeto em produção, utilizaríamos os seguintes serviços AWS:
+```
+Cliente -> API Gateway -> ECS/Fargate (FastAPI) -> Modelo (Thompson Sampling)
+                                                        |
+                                                  S3 (logs de decisão)
+                                                        |
+                                          Step Functions (retreino periódico)
+```
 
-**Amazon S3** para armazenamento dos dados brutos e processados, junto com logs de decisão do modelo. **Amazon ECS com Fargate** para hospedar a API de recomendação em container Docker, exposta via **API Gateway** para receber requisições dos canais digitais. O modelo Thompson Sampling seria atualizado periodicamente via **AWS Step Functions** orquestrando um pipeline de retreino que lê os feedbacks acumulados no S3.
-
-Para monitoramento, **CloudWatch** coleta métricas de latência, taxa de erro e drift do modelo. **SageMaker Feature Store** armazena as features dos clientes de forma centralizada, e os experimentos de ML são rastreados via **MLflow hospedado em EC2** ou **SageMaker Experiments**.
+| Serviço | Função |
+|---------|--------|
+| Amazon S3 | Armazenamento de dados, logs de decisão e artefatos |
+| Amazon ECS + Fargate | API de recomendação containerizada |
+| API Gateway | Exposição da API para canais digitais |
+| AWS Step Functions | Orquestração do pipeline de retreino |
+| CloudWatch | Monitoramento de latência, erros e drift |
+| SageMaker Feature Store | Features centralizadas dos clientes |
+| MLflow (EC2) | Tracking de experimentos |
 
 ---
 
 ## MLflow
 
-Experimentos registrados:
+Experimentos registrados no notebook:
 - **baseline_regra_fixa**: métricas do baseline determinístico
-- **thompson_sampling_v1**: Thompson Sampling sem contexto
 - **thompson_sampling_contextual**: Thompson Sampling com segmentação por features
 
-Parâmetros e métricas rastreados via MLflow inline no notebook Kaggle.
+Parâmetros e métricas rastreados:
+- `ctr`, `reward_acumulado`, `regret_acumulado`, `regret_medio`
+- `ganho_vs_baseline_pct`
+- Segmentos e configuração dos priors
 
 ---
 

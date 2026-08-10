@@ -35,7 +35,7 @@ A solução demonstra o ciclo completo de Machine Learning Engineering: formula�
 ## Como Executar
 
 ### No Kaggle (recomendado para avaliadores):
-1. Acesse o notebook no Kaggle: [link do notebook]
+1. Acesse o notebook no Kaggle: [[link do notebook](https://www.kaggle.com/code/giovannacatelli/datathon-7mlet)]
 2. Clique em **"Copy & Edit"**
 3. Verifique que o dataset "Bank Marketing" está adicionado no Input
 4. Clique em **"Run All"**
